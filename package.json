@@ -1,0 +1,47 @@
+{
+  "name": "failtail",
+  "version": "1.0.0",
+  "description": "MCP server for tailing logs from Heroku, Fly.io, Render, ngrok, Rails, and Docker",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "failtail": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "logs",
+    "heroku",
+    "fly",
+    "render",
+    "ngrok",
+    "rails",
+    "docker"
+  ],
+  "author": "Andrew Dubinsky",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adubinsky/failtail.git"
+  },
+  "homepage": "https://github.com/adubinsky/failtail#readme",
+  "bugs": {
+    "url": "https://github.com/adubinsky/failtail/issues"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
