@@ -1,6 +1,19 @@
 import { ChildProcess } from 'child_process';
+import { statSync } from 'fs';
 import { LogSession } from '../types.js';
 import { randomUUID } from 'crypto';
+
+export interface SessionInfo {
+  id: string;
+  service: string;
+  startedAt: Date;
+  status: 'running' | 'completed' | 'stopped';
+  app?: string;
+  container?: string;
+  filePath?: string;
+  duration?: number;
+  fileSizeBytes?: number;
+}
 
 class SessionManager {
   private sessions: Map<string, LogSession> = new Map();
@@ -8,7 +21,7 @@ class SessionManager {
   createSession(
     service: string,
     process: ChildProcess,
-    metadata?: { app?: string; container?: string }
+    metadata?: { app?: string; container?: string; filePath?: string; duration?: number }
   ): string {
     const id = randomUUID().slice(0, 8);
     const session: LogSession = {
@@ -16,13 +29,17 @@ class SessionManager {
       service,
       process,
       startedAt: new Date(),
+      status: 'running',
       ...metadata,
     };
     this.sessions.set(id, session);
 
-    // Clean up session when process exits
+    // Update status when process exits
     process.on('close', () => {
-      this.sessions.delete(id);
+      const s = this.sessions.get(id);
+      if (s && s.status === 'running') {
+        s.status = 'completed';
+      }
     });
 
     return id;
@@ -32,6 +49,33 @@ class SessionManager {
     return this.sessions.get(id);
   }
 
+  getSessionInfo(id: string): SessionInfo | undefined {
+    const session = this.sessions.get(id);
+    if (!session) return undefined;
+
+    const info: SessionInfo = {
+      id: session.id,
+      service: session.service,
+      startedAt: session.startedAt,
+      status: session.status,
+      app: session.app,
+      container: session.container,
+      filePath: session.filePath,
+      duration: session.duration,
+    };
+
+    if (session.filePath) {
+      try {
+        const stat = statSync(session.filePath);
+        info.fileSizeBytes = stat.size;
+      } catch {
+        // File may not exist yet
+      }
+    }
+
+    return info;
+  }
+
   stopSession(id: string): boolean {
     const session = this.sessions.get(id);
     if (!session) {
@@ -39,27 +83,61 @@ class SessionManager {
     }
 
     try {
+      session.status = 'stopped';
       session.process.kill('SIGTERM');
-      this.sessions.delete(id);
       return true;
     } catch {
       return false;
     }
   }
 
-  listSessions(): LogSession[] {
-    return Array.from(this.sessions.values());
+  listSessions(): SessionInfo[] {
+    return Array.from(this.sessions.values()).map((session) => {
+      const info: SessionInfo = {
+        id: session.id,
+        service: session.service,
+        startedAt: session.startedAt,
+        status: session.status,
+        app: session.app,
+        container: session.container,
+        filePath: session.filePath,
+        duration: session.duration,
+      };
+
+      if (session.filePath) {
+        try {
+          const stat = statSync(session.filePath);
+          info.fileSizeBytes = stat.size;
+        } catch {
+          // File may not exist yet
+        }
+      }
+
+      return info;
+    });
   }
 
   stopAllSessions(): void {
     for (const session of this.sessions.values()) {
       try {
+        session.status = 'stopped';
         session.process.kill('SIGTERM');
       } catch {
         // Ignore errors during cleanup
       }
     }
     this.sessions.clear();
+  }
+
+  clearCompleted(): number {
+    let cleared = 0;
+    for (const [id, session] of this.sessions) {
+      if (session.status !== 'running') {
+        this.sessions.delete(id);
+        cleared++;
+      }
+    }
+    return cleared;
   }
 }
 

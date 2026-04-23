@@ -7,6 +7,9 @@ export interface LogSession {
   startedAt: Date;
   app?: string;
   container?: string;
+  filePath?: string;
+  duration?: number;
+  status: 'running' | 'completed' | 'stopped';
 }
 
 export interface LogResult {

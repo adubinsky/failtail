@@ -173,6 +173,24 @@ export const AUTH_ERROR_PATTERNS: Record<string, AuthErrorPattern> = {
   },
 };
 
+const MAX_DURATION_MS = 4 * 60 * 60 * 1000; // 4 hours
+
+export function parseDuration(input: string): number {
+  const pattern = /(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/;
+  const match = input.match(pattern);
+  if (!match || (!match[1] && !match[2] && !match[3])) {
+    throw new Error(`Invalid duration format: "${input}". Use formats like "30s", "5m", "1h", "1h30m".`);
+  }
+  const hours = parseInt(match[1] || '0', 10);
+  const minutes = parseInt(match[2] || '0', 10);
+  const seconds = parseInt(match[3] || '0', 10);
+  const ms = (hours * 3600 + minutes * 60 + seconds) * 1000;
+  if (ms <= 0) {
+    throw new Error('Duration must be greater than zero.');
+  }
+  return Math.min(ms, MAX_DURATION_MS);
+}
+
 export function detectAuthError(
   output: string,
   service: keyof typeof AUTH_ERROR_PATTERNS

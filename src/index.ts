@@ -8,12 +8,18 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { herokuLogs, herokuLogsSchema, herokuToolDefinition } from './tools/heroku.js';
-import { flyLogs, flyLogsSchema, flyToolDefinition } from './tools/fly.js';
+import { flyLogs, flyLogsSchema, flyToolDefinition, flyCapture, flyCaptureSchema, flyCaptureToolDefinition } from './tools/fly.js';
 import { renderLogs, renderLogsSchema, renderToolDefinition } from './tools/render.js';
 import { ngrokLogs, ngrokLogsSchema, ngrokToolDefinition } from './tools/ngrok.js';
 import { railsLogs, railsLogsSchema, railsToolDefinition } from './tools/rails.js';
 import { dockerLogs, dockerLogsSchema, dockerToolDefinition } from './tools/docker.js';
 import { sessionManager } from './utils/session.js';
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 const server = new Server(
   {
@@ -33,6 +39,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       herokuToolDefinition,
       flyToolDefinition,
+      flyCaptureToolDefinition,
       renderToolDefinition,
       ngrokToolDefinition,
       railsToolDefinition,
@@ -89,6 +96,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'fly_logs': {
         const input = flyLogsSchema.parse(args);
         const result = await flyLogs(input);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: result.success
+                ? result.logs
+                : `Error: ${result.error}`,
+            },
+          ],
+          isError: !result.success,
+        };
+      }
+
+      case 'fly_capture': {
+        const input = flyCaptureSchema.parse(args);
+        const result = await flyCapture(input);
         return {
           content: [
             {
@@ -196,11 +219,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
         const sessionList = sessions
-          .map(
-            (s) =>
-              `${s.id}: ${s.service} (started ${s.startedAt.toISOString()})`
-          )
-          .join('\n');
+          .map((s) => {
+            let line = `${s.id}: ${s.service} [${s.status}] (started ${s.startedAt.toISOString()})`;
+            if (s.app) line += `\n  App: ${s.app}`;
+            if (s.filePath) line += `\n  File: ${s.filePath}`;
+            if (s.fileSizeBytes !== undefined) line += ` (${formatBytes(s.fileSizeBytes)})`;
+            return line;
+          })
+          .join('\n\n');
         return {
           content: [{ type: 'text', text: sessionList }],
         };
